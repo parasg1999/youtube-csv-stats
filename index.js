@@ -3,8 +3,6 @@ const express = require("express");
 const fileUpload = require("express-fileupload");
 const fse = require("fs-extra");
 
-require("dotenv").config();
-
 const app = express();
 
 app.use(fileUpload());
@@ -25,51 +23,34 @@ app.post("/", async (req, res) => {
     let outputCSV = `Provided Name,Channel ID,Name of channel,Subscribers,Total Videos,Total Views`;
     let cerr = 0;
     let csuccess = 0;
-    let isChannel = false;
     for (let index = 0; index < completeCSV.length; index++) {
       const elArr = completeCSV[index].split(",");
       let element = elArr.pop();
-      isChannel = element.includes("channel");
       if (element[element.length - 1] === "/") {
         element = element.substring(0, element.length - 1);
       }
       try {
         let channelId = element.split("/").pop();
+        const informationResponse = await axios.get(
+          `https://counts.live/api/youtube-subscriber-count/${channelId}/search`
+        );
 
-        let informationResponse;
+        const { name, picture, backdrop, id } =
+          informationResponse.data.data[0];
 
-        if (isChannel) {
-          informationResponse = await axios.get(
-            `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet,contentDetails&id=${channelId}&key=${process.env.YT_DATA_API_KEY}`
-          );
-        } else {
-          informationResponse = await axios.get(
-            `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet,contentDetails&forUsername=${channelId}&key=${process.env.YT_DATA_API_KEY}`
-          );
-        }
+        const subscriberResponse = await axios.get(
+          `https://counts.live/api/youtube-subscriber-count/${id}/live`
+        );
 
-        informationResponse = informationResponse.data.items[0];
+        const { subscribers, videos, views } = subscriberResponse.data.data;
 
-        const { snippet, statistics, id } = informationResponse;
-
-        const { title } = snippet;
-
-        const {
-          viewCount,
-          subscriberCount,
-          hiddenSubscriberCount,
-          videoCount,
-        } = statistics;
-
-        outputCSV += `\r\n${elArr[0]},${id},${title},${
-          subscriberCount || 0
-        },${videoCount},${viewCount}`;
+        outputCSV += `\r\n${elArr[0]},${id},${name},${subscribers},${videos},${views},${picture}`;
         csuccess++;
       } catch (err) {
         console.log(err.message);
         cerr++;
-        console.log({ csuccess, cerr, element });
       }
+      console.log({ csuccess, cerr, element });
     }
 
     const downloadPath = `./uploads/output-file.csv`;
